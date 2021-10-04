@@ -6,11 +6,11 @@ The first step (*once you've downloaded it and placed it somewhere in your games
 ```lua
 poster = require("poster")
 ```
-Next you need to create a "poster object" like so:
+Next you need to create a "poster canvas" like so:
 ```lua
 canvas = poster.new()
 ```
-A "poster object" acts like a canvas.
+A "poster canvas" acts like a regular canvas.
 
 You can draw to it:
 ```lua
@@ -70,44 +70,41 @@ shaderData = {
 }
 ```
 
+## Chains
+POSTER has a built in chain system that helps you set up chains of effects. To create a new chain you use:
+### `poster.newChain(shaders, settings)`
+Shaders is a table of shaders in the chain, Can be any combination of strings and/or your own shaders, Just like in `poster:draw()`. Settings is a table of uniforms for those shaders in the same format as `poster:send()`
+
+Here's an example:
+```lua
+lofi = poster.newChain(
+  {"pixelate", "chromaticAberrationRadius", "posterize", "scanlines"}, 
+  {
+    {"pixelate", "resolution", {lg.getWidth() / 2, lg.getHeight() / 2}},
+    {"chromaticAberrationRadius", "radius", 10},
+    {"chromaticAberrationRadius", "position", {lg.getWidth() / 2, lg.getHeight() / 2}},
+    {"posterize", "colors", 16},
+    {"scanlines", "opacity", 0.9},
+    {"scanlines", "scale", 0.9},
+  })
+```
+
+Alternatively, There's also `chain:addEffect()` & `chain:addSetting()` which you can use like this:
+```lua
+blur = poster.newChain()
+blur:addEffect("horizontalBlur", "verticalBlur")
+blur:addSetting("horizontalBlur", "amount", 2)
+blur:addSetting("verticalBlur", "amount", 2)
+```
+Then you can apply the chains by using them as arguments in the draw function
+```lua
+canvas:draw(lofi)
+```
+Note that you can only apply one chain at a time. 
+
 ## Standard shaders:
 
 NOTE: Any shaders that take the uniform 'imageSize' are automatically sent a default when POSTER is loaded. The default is the window resolution. You can easily update this for all shaders that require it with `poster:sendImageSize(width, height)`
-
-### Utility shaders
-### `bandpass`
-Uniforms:
-* cutoff: Number in the range 0-1
-* bandwidth: Number in the range 0-1
-
-Any pixels brighter than the value of `cutoff` and dimmer than `cutoff + bandwidth` are rendered normally, Others are not.
-
-### `lowpass`
-Uniforms:
-* cutoff: Number in the range 0-1
-
-Any pixels dimmer than `cutoff` are rendered normally, Others are not
-
-### `highpass`
-Uniforms:
-* cutoff: Number in the range 0-1
-
-Any pixels brighter than `cutoff` are rendered normally, Others are not
-
-### `convolution`
-Uniforms:
-* imageSize: vec2 representing the image size.
-* kernelSize: vec2 representing the kernel size.
-* kernel: 1-dimensional array representing the kernel.
-
-Performs a [convolution](https://en.wikipedia.org/wiki/Kernel_(image_processing)#Convolution) on your image. Can take a kernel of any size, But by default limited to 25 values.
-
-### `convolution3x3`
-Uniforms:
-* imageSize: vec2 representing the image size.
-* kernel: 1-dimensional array representing the kernel. Should contain 9 numbers.
-
-Same as `convolution`, But only works for 3x3 kernels. Should be a bit faster than `convolution` because it doesn't use any loops.
 
 ### Color correction shaders
 
