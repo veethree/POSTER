@@ -1,5 +1,4 @@
 // Posterize shader
-// 
 
 uniform float colors;
 

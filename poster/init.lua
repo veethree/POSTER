@@ -24,13 +24,25 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
+local print_status = true
+
+
+-- Creates a local version of the print function so i can easily toggle debug printing.
+local _print = print
+local function print(...)
+    if print_status then
+        _print(...)
+    end
+end
+
 -- Shorthands
 local lg = love.graphics
 local fs = love.filesystem
 local f = string.format
+local insert = table.insert
 
 -- Paths
-local poster_path = ...
+local poster_path = (...):gsub("%.", "/") -- gsub replaces the . with /
 local shader_path = f("%s/%s", poster_path, "shaders")
 
 -- Initializing module
@@ -38,26 +50,58 @@ local poster = {
     shaders = {},
     -- Keeping track of shaders that use 'imageSize' so it can be easily updated
     shaders_with_imageSize = {"chromaticAberrationAngle", "chromaticAberrationRadius",
-    "convolution", "convolution3x3", "horizontalBlur", "verticalBlur", "waveDistortion"},
-
-    previous_canvas = false -- Used to store a previous canvas for poster:set()
+    "horizontalBlur", "verticalBlur", "waveDistortion", "scanlines"},
 }
 local poster_meta = {__index = poster}
 
 -- Loading built in shaders
+print("Loading shaders...")
 local shader_directory = fs.getDirectoryItems(shader_path)
 for _, shader in ipairs(shader_directory) do
     local name, extension = shader:match("(%w+).(%w+)")
     if extension == "frag" then
-        print(shader)
         poster.shaders[name] = lg.newShader(f("%s/%s", shader_path, shader))
     end
 end
+print("Shaders loaded.")
 
 -- Sending a default imageSize to shaders that use it.
 local imageSize = {lg.getWidth(), lg.getHeight()}
 for _,shader in pairs(poster.shaders_with_imageSize) do
+    print(shader)
     poster.shaders[shader]:send("imageSize", imageSize)
+end
+
+-- CHAIN
+function poster.newChain(effects, settings)
+    return setmetatable({
+        type = "chain",
+        effects = effects or {},
+        settings = settings or {}
+    }, poster_meta)
+end
+
+function poster:addEffect(...)
+    assert(self.type == "chain", "addEffect() can only be used on chain objects")
+    for i,v in ipairs({...}) do
+        local shader = v
+        print(type(shader))
+
+        if type(v) == "string" then
+            assert(self.shaders[shader], f("Shader '%s' does not exist.", shader))
+        else
+            if type(shader) == "userdata" then
+                assert(shader:type() == "Shader", f("'%s' is not a shader", shader))
+            end
+        end
+
+        insert(self.effects, shader)
+    end
+end
+
+function poster:addSetting(...)
+    assert(self.type == "chain", "addSetting() can only be used on chain objects")
+    insert(self.settings, {...})
 end
 
 -- Creates and returns a new poster object.
@@ -66,9 +110,12 @@ function poster.new(w, h)
     h = h or lg.getHeight()
 
     local po = setmetatable({
+        type = "canvas",
         main = lg.newCanvas(w, h),
         a = lg.newCanvas(w, h),
-        b = lg.newCanvas(w, h)
+        b = lg.newCanvas(w, h),
+        previous_canvas = false -- Used to store a previous canvas for poster:set()
+
     }, poster_meta)
 
     return po
@@ -97,6 +144,7 @@ function poster:sendImageSize(width, height)
     end
 end
 
+-- Sets a wrap mode for the poster object
 function poster:setWrap(wrap)
     self.main:setWrap(wrap)
     self.a:setWrap(wrap)
@@ -120,6 +168,7 @@ function poster:clear()
     lg.setCanvas(previous_canvas)
 end
 
+-- set unset block
 function poster:set()
     poster.previous_canvas = lg.getCanvas()
     lg.setCanvas(self.main)
@@ -128,12 +177,23 @@ end
 function poster:unset()
     lg.setCanvas(poster.previous_canvas)
 end
+
 -- Draws the poster object, Applying any shaders it gets as arguments.
 function poster:draw(...)
     -- Capturing previous graphics state
     local r, g, b, a = lg.getColor()
     local previous_canvas = lg.getCanvas()
     local previous_blendMode, previous_alphaMode = lg.getBlendMode()
+
+    local shaders = {...}
+    local chain
+
+    -- Chain handling
+    if type(shaders[1]) == "table" then
+        chain = shaders[1]
+        shaders = chain.effects
+        self:send(chain.settings)
+    end
 
     -- Rendering effects
     lg.setBlendMode("alpha")
@@ -142,7 +202,7 @@ function poster:draw(...)
     lg.draw(self.main)
     local state = false
     local final = false
-    for _, shader in pairs({...}) do
+    for _, shader in pairs(shaders) do
         local a = self.a
         local b = self.b
         if state then
@@ -153,7 +213,8 @@ function poster:draw(...)
         lg.setCanvas(a)
         lg.clear()
         local _shader = shader
-        if type(shader) == "string" and self.shaders[shader] then
+        if type(shader) == "string" then
+            assert(self.shaders[shader], f("Shader '%s' does not exist", shader))
             _shader = self.shaders[shader]
         end
         lg.setShader(_shader)

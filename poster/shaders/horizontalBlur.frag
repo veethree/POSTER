@@ -2,7 +2,6 @@
 uniform vec2 imageSize;
 uniform float amount;
 
-
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec4 sum = vec4(0.0);
     float normalAmount = amount / imageSize.x;
@@ -19,5 +18,3 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 
     return sum;
 }
-
-// color += Texel(tex, tc + intensity*vec2(0.0, 0.0));

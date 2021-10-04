@@ -1,5 +1,4 @@
 // An angle based chromatic aberration shader.
-// Any pixel brighter than 'cutoff' and darker than `cutoff + bandwidth' is returned
 
 uniform float angle;
 uniform float offset;
