@@ -106,6 +106,7 @@ Note that you can only apply one chain at a time.
 
 NOTE: Any shaders that take the uniform 'imageSize' are automatically sent a default when POSTER is loaded. The default is the window resolution. You can easily update this for all shaders that require it with `poster:sendImageSize(width, height)`
 
+
 ### Color correction shaders
 
 ### `brightness`
@@ -126,7 +127,54 @@ Uniforms:
 
 Sets the saturation.
 
+## `rgbMix`
+Uniforms:
+* rgb: vec3. {r, g, b}. 
 
+The red, green and blue values of the image will be multiplied by this vector. So {1, 0, 0} will result in everything being red, {0.8, 1, 1.2} will result in a slightly cooler image etc.
+
+## Blur
+### `horizontalBlur` & `verticalBlur`
+Uniforms:
+* amount: The strength of the blur. 
+
+A horizontal & vertical gaussian blur, It's pretty low resolution, So values above about 3 get a bit weird.
+
+## Chromatic aberration
+These are those neat RGB split effects. The red and blue channels are offset.
+### `chromaticAberrationAngle`
+Uniforms:
+* angle: Number. Angle at which to offset the channels in radians.
+* offset Number. How much to offset the channels by.
+
+### `chromaticAberrationRadius`
+Uniforms:
+* position: vec2. {x, y}. The "origin" of the aberration, The farther away from this point a pixel is, The more the channels are offset.
+* offset Number. How much to offset the channels by.
+
+Offsets the channels based on a distance from a certain point.
+
+## Other
+### `pixelate`
+uniforms:
+* resolution vec2. {width, height}: Acts like a "render resolution". Should be something smaller than the actual resoltion of your game.
+
+Pixelates the screen. The smaller the resolution, the more pixely it gets.
+
+### `posterize`
+uniforms:
+* colors: Number: How many colors to use
+
+Limits the number of colors
+
+### `vignette`
+uniforms:
+* radius: number: How large the vignette is. 0-1.
+* opacity: Number. How opaque the vignette is. 0-1.
+* softness: Number: How soft the vignette is. 0-1.
+* color: vec3. {r, g, b}. Color of the vignette
+
+Adds a vignette.
 
 
 
