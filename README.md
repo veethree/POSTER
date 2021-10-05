@@ -100,7 +100,15 @@ Then you can apply the chains by using them as arguments in the draw function
 ```lua
 canvas:draw(lofi)
 ```
-Note that you can only apply one chain at a time. 
+You can apply multiple chains in the draw function.
+ ```lua
+ canvas:draw(lofi, anotherChain, etCetera)
+ ```
+ 
+However, You can **not** mix shaders and chains together.
+```lua
+canvas:draw(lofi, "contrast") -- This would throw an error.
+```
 
 ## Standard shaders:
 
