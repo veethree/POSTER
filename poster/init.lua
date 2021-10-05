@@ -1,4 +1,4 @@
--- POSTER: A library for applying post processing affects via shaders to your löve game.
+-- POSTER: A library for applying post processing effects via shaders to your löve game.
 -- Made for löve (https://love2d.org/)
 -- Version 1.0
 
@@ -24,7 +24,8 @@
 -- OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 -- SOFTWARE.
 
-local print_status = true
+
+local print_status = true -- This is for debugging, If true, POSTER will print out what its doing
 
 
 -- Creates a local version of the print function so i can easily toggle debug printing.
@@ -47,7 +48,7 @@ local shader_path = f("%s/%s", poster_path, "shaders")
 
 -- Initializing module
 local poster = {
-    shaders = {},
+    loaded_shaders = {},
     -- Keeping track of shaders that use 'imageSize' so it can be easily updated
     shaders_with_imageSize = {"chromaticAberrationAngle", "chromaticAberrationRadius",
     "horizontalBlur", "verticalBlur", "waveDistortion", "scanlines"},
@@ -60,51 +61,77 @@ local shader_directory = fs.getDirectoryItems(shader_path)
 for _, shader in ipairs(shader_directory) do
     local name, extension = shader:match("(%w+).(%w+)")
     if extension == "frag" then
-        poster.shaders[name] = lg.newShader(f("%s/%s", shader_path, shader))
+        print(f("Loading shader '%s/%s'.", shader_path, shader))
+        poster.loaded_shaders[name] = lg.newShader(f("%s/%s", shader_path, shader))
     end
 end
 print("Shaders loaded.")
 
 -- Sending a default imageSize to shaders that use it.
+print("Sending 'imageSize' to shaders in the 'shaders_with_imageSize' list")
 local imageSize = {lg.getWidth(), lg.getHeight()}
 for _,shader in pairs(poster.shaders_with_imageSize) do
-    print(shader)
-    poster.shaders[shader]:send("imageSize", imageSize)
+    print(f("Sending to '%s'", shader))
+    poster.loaded_shaders[shader]:send("imageSize", imageSize)
+end
+print("Finished.")
+
+--==[[ LOCAL METHODS ]]==--
+
+-- Consolidates multiple chains into a set of tables
+local function consolidateChains(...)
+    local shaders, settings = {}, {}
+    for _,chain in ipairs({...}) do
+        -- Shaders
+        for _, shader in ipairs(chain.shaders) do
+            insert(shaders, shader)
+        end
+        -- Settings
+        for _, setting in ipairs(chain.settings) do
+            insert(settings, setting)
+        end
+    end
+    return shaders, settings
 end
 
--- CHAIN
-function poster.newChain(effects, settings)
+--==[[ CHAIN SYSTEM ]]==--
+
+-- Creates a new chain
+function poster.newChain(shaders, settings)
     return setmetatable({
         type = "chain",
-        effects = effects or {},
+        shaders = shaders or {},
         settings = settings or {}
     }, poster_meta)
 end
 
-function poster:addEffect(...)
-    assert(self.type == "chain", "addEffect() can only be used on chain objects")
+-- Adds a shader to a chain
+function poster:addShader(...)
+    assert(self.type == "chain", "addShader() can only be used on chain objects")
     for i,v in ipairs({...}) do
         local shader = v
-        print(type(shader))
-
+        -- Checking if the shader provided exists & is of the appropriate type.
         if type(v) == "string" then
-            assert(self.shaders[shader], f("Shader '%s' does not exist.", shader))
+            assert(self.loaded_shaders[shader], f("Shader '%s' does not exist.", shader))
         else
             if type(shader) == "userdata" then
                 assert(shader:type() == "Shader", f("'%s' is not a shader", shader))
             end
         end
 
-        insert(self.effects, shader)
+        insert(self.shaders, shader)
     end
 end
 
+-- Adds a setting to a chain
 function poster:addSetting(...)
     assert(self.type == "chain", "addSetting() can only be used on chain objects")
     insert(self.settings, {...})
 end
 
--- Creates and returns a new poster object.
+--==[[ CANVAS SYSTEM ]]==--
+
+-- Creates and returns a new poster canvas.
 function poster.new(w, h)
     w = w or lg.getWidth()
     h = h or lg.getHeight()
@@ -126,11 +153,11 @@ end
 -- {{shader, uniform, data }, {shader, uniform, data} ...}
 function poster:send(shader, uniform, data)
     if type(shader) == "string" then
-        assert(self.shaders[shader], f("Shader '%s' does not exists!", shader))
-        self.shaders[shader]:send(uniform, data)
+        assert(self.loaded_shaders[shader], f("Shader '%s' does not exists!", shader))
+        self.loaded_shaders[shader]:send(uniform, data)
     elseif type(shader) == "table" then
         for i,v in ipairs(shader) do
-            self.shaders[v[1]]:send(v[2], v[3])
+            self.loaded_shaders[v[1]]:send(v[2], v[3])
         end
     end
 end
@@ -140,7 +167,7 @@ end
 function poster:sendImageSize(width, height)
     local imageSize = {width or lg.getWidth(), height or lg.getHeight()}
     for _,shader in pairs(self.shaders_with_imageSize) do
-        poster.shaders[shader]:send("imageSize", imageSize)
+        poster.loaded_shaders[shader]:send("imageSize", imageSize)
     end
 end
 
@@ -151,7 +178,7 @@ function poster:setWrap(wrap)
     self.b:setWrap(wrap)
 end
 
--- Draws to the poster object
+-- Draws to the poster canvas
 function poster:drawTo(func)
     func = func or function() lg.clear() end
     local previous_canvas = lg.getCanvas()
@@ -160,7 +187,7 @@ function poster:drawTo(func)
     lg.setCanvas(previous_canvas)
 end
 
--- Clears the poster object
+-- Clears the poster canvas
 function poster:clear()
     local previous_canvas = lg.getCanvas()
     lg.setCanvas(self.main)
@@ -168,7 +195,7 @@ function poster:clear()
     lg.setCanvas(previous_canvas)
 end
 
--- set unset block
+-- set / unset block
 function poster:set()
     poster.previous_canvas = lg.getCanvas()
     lg.setCanvas(self.main)
@@ -178,22 +205,27 @@ function poster:unset()
     lg.setCanvas(poster.previous_canvas)
 end
 
--- Draws the poster object, Applying any shaders it gets as arguments.
+-- Draws the poster canvas, Applying any shaders it gets as arguments.
 function poster:draw(...)
     -- Capturing previous graphics state
     local r, g, b, a = lg.getColor()
     local previous_canvas = lg.getCanvas()
     local previous_blendMode, previous_alphaMode = lg.getBlendMode()
 
-    local shaders = {...}
-    local chain
-
-    -- Chain handling
-    if type(shaders[1]) == "table" then
-        chain = shaders[1]
-        shaders = chain.effects
-        self:send(chain.settings)
+    local shaders, settings = {...}, false
+    
+    -- Making sure chains and single shaders aren't being mixed
+    if #shaders > 0 then
+        if shaders[1].type == "chain" then
+            for _, chain in ipairs({...}) do
+                assert(chain.type == "chain", "Can't mix Chains and single shaders together when drawing")
+            end
+        end
     end
+
+    -- Consolidating chains & applying settings
+    shaders, settings = consolidateChains(...)
+    self:send(settings)
 
     -- Rendering effects
     lg.setBlendMode("alpha")
@@ -203,19 +235,22 @@ function poster:draw(...)
     local state = false
     local final = false
     for _, shader in pairs(shaders) do
+        -- Swapping canvas a & b
         local a = self.a
         local b = self.b
         if state then
             a = self.b 
             b = self.a
         end
-    
+        
+        -- Applying shader
         lg.setCanvas(a)
         lg.clear()
         local _shader = shader
         if type(shader) == "string" then
-            assert(self.shaders[shader], f("Shader '%s' does not exist", shader))
-            _shader = self.shaders[shader]
+            -- Asserting that the shader exists in the loaded_shaders table
+            assert(self.loaded_shaders[shader], f("Shader '%s' does not exist", shader))
+            _shader = self.loaded_shaders[shader]
         end
         lg.setShader(_shader)
         lg.draw(b)
