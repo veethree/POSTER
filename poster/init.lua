@@ -1,6 +1,5 @@
 -- POSTER: A library for applying post processing effects via shaders to your löve game.
--- Made for löve (https://love2d.org/)
--- Version 1.0
+-- Version: v0.1
 
 -- MIT License
 -- 
@@ -78,9 +77,13 @@ print("Finished.")
 
 --==[[ LOCAL METHODS ]]==--
 
+local function shaderLoaded(shader)
+    return poster.loaded_shaders[shader] or false
+end
+
 -- Consolidates multiple chains into a set of tables
 local function consolidateChains(...)
-    local shaders, settings = {}, {}
+    local shaders, combined_settings = {}, {}
     for _,chain in ipairs({...}) do
         -- Shaders
         for _, shader in ipairs(chain.shaders) do
@@ -88,10 +91,11 @@ local function consolidateChains(...)
         end
         -- Settings
         for _, setting in ipairs(chain.settings) do
-            insert(settings, setting)
+            -- {shader, uniform, value}
+            insert(combined_settings, setting)
         end
     end
-    return shaders, settings
+    return shaders, combined_settings
 end
 
 --==[[ CHAIN SYSTEM ]]==--
@@ -211,21 +215,29 @@ function poster:draw(...)
     local r, g, b, a = lg.getColor()
     local previous_canvas = lg.getCanvas()
     local previous_blendMode, previous_alphaMode = lg.getBlendMode()
+    local arguments = {...}
 
-    local shaders, settings = {...}, false
-    
-    -- Making sure chains and single shaders aren't being mixed
-    if #shaders > 0 then
-        if shaders[1].type == "chain" then
-            for _, chain in ipairs({...}) do
-                assert(chain.type == "chain", "Can't mix Chains and single shaders together when drawing")
+    -- Checking arguments
+    local isChain, isShader = false, false
+    for i,v in ipairs(arguments) do
+        if type(v) == "table" then
+            if v.type == "chain" then
+                assert(not isShader, "Cannot mix chains and shaders when drawing")
+                isChain = true
             end
+        elseif type(v) == "string" then
+            assert(shaderLoaded(v), f("Shader '%s' does not exist", v))
+            assert(not isChain, "Cannot mix chains and shaders when drawing")
+            isShader = true
         end
     end
 
-    -- Consolidating chains & applying settings
-    shaders, settings = consolidateChains(...)
-    self:send(settings)
+    -- If isShader is TRUE
+    local chains = {1}
+
+    if isChain then
+        chains = arguments
+    end
 
     -- Rendering effects
     lg.setBlendMode("alpha")
@@ -234,33 +246,41 @@ function poster:draw(...)
     lg.draw(self.main)
     local state = false
     local final = false
-    for _, shader in pairs(shaders) do
-        -- Swapping canvas a & b
-        local a = self.a
-        local b = self.b
-        if state then
-            a = self.b 
-            b = self.a
-        end
-        
-        -- Applying shader
-        lg.setCanvas(a)
-        lg.clear()
-        local _shader = shader
-        if type(shader) == "string" then
-            -- Asserting that the shader exists in the loaded_shaders table
-            assert(self.loaded_shaders[shader], f("Shader '%s' does not exist", shader))
-            _shader = self.loaded_shaders[shader]
-        end
-        lg.setShader(_shader)
-        lg.draw(b)
-        lg.setShader()
 
-        final = a
+    for _, chain in ipairs(chains) do
+        local shaders = arguments
+        if isChain then
+            shaders = chain.shaders
+            self:send(chain.settings)
+        end
 
-        state = not state
+        for _, shader in pairs(shaders) do
+            -- Swapping canvas a & b
+            local a = self.a
+            local b = self.b
+            if state then
+                a = self.b 
+                b = self.a
+            end
+            
+            -- Applying shader
+            lg.setCanvas(a)
+            lg.clear()
+            local _shader = shader
+            if type(shader) == "string" then
+                -- Asserting that the shader exists in the loaded_shaders table
+                assert(self.loaded_shaders[shader], f("Shader '%s' does not exist", shader))
+                _shader = self.loaded_shaders[shader]
+            end
+            lg.setShader(_shader)
+            lg.draw(b)
+            lg.setShader()
+
+            final = a
+
+            state = not state
+        end
     end
-
     -- Reverting previous graphics state
     lg.setCanvas(previous_canvas)
     lg.setBlendMode(previous_blendMode, previous_alphaMode)
