@@ -6,11 +6,11 @@ The first step (*once you've downloaded it and placed it somewhere in your games
 ```lua
 poster = require("poster")
 ```
-Next you need to create a "poster canvas" like so:
+Next you need to create a canvas like so:
 ```lua
 canvas = poster.new()
 ```
-A "poster canvas" acts like a regular canvas.
+A poster canvas acts like a regular canvas.
 
 You can draw to it:
 ```lua
@@ -18,7 +18,7 @@ canvas:drawTo(function()
   love.graphics.circle("fill", 100, 100, 64)
 end)
 ```
-Or if you prefer:
+Or if you prefer there's also a set/unset block.
 ```lua
 canvas:set()
 --draw stuff
@@ -40,7 +40,7 @@ end)
 ```
 
 
-Once youre finished drawing to the canvas, You can draw the "poster object" to the screen like so:
+Once youre finished drawing to the canvas, You can draw it to the screen like so:
 ```lua
 canvas:draw()
 ```
@@ -69,9 +69,10 @@ shaderData = {
   ...
 }
 ```
+The uniform data each shader requires is explained below.
 
 ## Chains
-POSTER has a built in chain system that helps you set up chains of effects. To create a new chain you use:
+POSTER has a built in chain system that helps you set up chains of shaders. To create a new chain you use:
 ### `poster.newChain(shaders, settings)`
 Shaders is a table of shaders in the chain, Can be any combination of strings and/or your own shaders, Just like in `poster:draw()`. Settings is a table of uniforms for those shaders in the same format as `poster:send()`
 
