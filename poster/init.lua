@@ -1,5 +1,5 @@
 -- POSTER: A library for applying post processing effects via shaders to your löve game.
--- Version: v0.1
+-- Version: v0.2
 
 -- MIT License
 -- 
@@ -25,7 +25,6 @@
 
 
 local print_status = true -- This is for debugging, If true, POSTER will print out what its doing
-
 
 -- Creates a local version of the print function so i can easily toggle debug printing.
 local _print = print
@@ -81,23 +80,6 @@ local function shaderLoaded(shader)
     return poster.loaded_shaders[shader] or false
 end
 
--- Consolidates multiple chains into a set of tables
-local function consolidateChains(...)
-    local shaders, combined_settings = {}, {}
-    for _,chain in ipairs({...}) do
-        -- Shaders
-        for _, shader in ipairs(chain.shaders) do
-            insert(shaders, shader)
-        end
-        -- Settings
-        for _, setting in ipairs(chain.settings) do
-            -- {shader, uniform, value}
-            insert(combined_settings, setting)
-        end
-    end
-    return shaders, combined_settings
-end
-
 --==[[ CHAIN SYSTEM ]]==--
 
 -- Creates a new chain
@@ -105,7 +87,8 @@ function poster.newChain(shaders, settings)
     return setmetatable({
         type = "chain",
         shaders = shaders or {},
-        settings = settings or {}
+        settings = settings or {},
+        macros = macros or {}
     }, poster_meta)
 end
 
@@ -131,6 +114,33 @@ end
 function poster:addSetting(...)
     assert(self.type == "chain", "addSetting() can only be used on chain objects")
     insert(self.settings, {...})
+end
+
+-- Adds a macro to a chain. macroName is the name used to refer to the macro
+-- targets is a table with the following format
+-- { {targetShader, targetUniform, Multiplier}, ... }
+function poster:addMacro(macroName, targets)
+    local macro = {
+        targets = targets,
+        targetSettings = {}
+    }
+
+    for _, target in ipairs(targets) do
+        for _,setting in ipairs(self.settings) do
+            if setting[1] == target[1] and setting[2] == target[2] then
+                insert(macro.targetSettings, setting)
+            end
+        end
+    end
+
+    self.macros[macroName] = macro
+end
+
+-- Sets a macros value
+function poster:setMacro(macroName, value)
+    for _, setting in ipairs(self.macros[macroName].targetSettings) do
+        setting[3] = value * self.macros[macroName].targets[_][3]
+    end
 end
 
 --==[[ CANVAS SYSTEM ]]==--
@@ -232,9 +242,7 @@ function poster:draw(...)
         end
     end
 
-    -- If isShader is TRUE
     local chains = {1}
-
     if isChain then
         chains = arguments
     end
