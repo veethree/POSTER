@@ -97,6 +97,23 @@ blur:addEffect("horizontalBlur", "verticalBlur")
 blur:addSetting("horizontalBlur", "amount", 2)
 blur:addSetting("verticalBlur", "amount", 2)
 ```
+
+Chains can also have Macros. Macros let you control multiple settings with a single value. 
+To define a new macro you use:
+```lua
+chain:newMacro(macroName, targets)
+```
+`macroName` should be a string that will be used to refer to this macro.
+`targets` should be a table with the following format
+```lua
+{
+  {shader, uniform, multiplier},
+  {shader, uniform, multiplier},
+  ...
+}
+```
+`Shader` & `uniform` are the shader & uniform the macro should affect, And `multiplier` lets you scale the macro value for different shaders in your chain.
+
 Then you can apply the chains by using them as arguments in the draw function
 ```lua
 canvas:draw(lofi)
