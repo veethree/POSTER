@@ -203,7 +203,14 @@ uniforms:
 Adds a vignette.
 
 
+# Demo
+The demo is just snake. But with shaders.
+Here's without shaders
+![noshaders](https://github.com/veethree/POSTER/blob/main/SnakeDemoNoShaders.gif)
 
+And here's the same with shaders
+![shaders](https://github.com/veethree/POSTER/blob/main/SnakeDemoShaders.gif)
 
+I think we can all agree shaders make it far better.
 
 
