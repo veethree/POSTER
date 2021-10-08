@@ -1,5 +1,5 @@
 -- POSTER: A library for applying post processing effects via shaders to your löve game.
--- Version: v0.2
+-- Version: v0.3
 
 -- MIT License
 -- 
@@ -80,6 +80,11 @@ local function shaderLoaded(shader)
     return poster.loaded_shaders[shader] or false
 end
 
+local function fillBackground()
+    lg.setColor(lg.getBackgroundColor())
+    lg.rectangle("fill", 0, 0, canvas.width, canvas.height)
+end
+
 --==[[ CHAIN SYSTEM ]]==--
 
 -- Creates a new chain
@@ -143,6 +148,10 @@ function poster:setMacro(macroName, value)
     end
 end
 
+function poster:getMacro(macroName)
+    return self.macros[macroName] or false
+end
+
 --==[[ CANVAS SYSTEM ]]==--
 
 -- Creates and returns a new poster canvas.
@@ -152,6 +161,8 @@ function poster.new(w, h)
 
     local po = setmetatable({
         type = "canvas",
+        width = w,
+        height = h,
         main = lg.newCanvas(w, h),
         a = lg.newCanvas(w, h),
         b = lg.newCanvas(w, h),
@@ -193,10 +204,14 @@ function poster:setWrap(wrap)
 end
 
 -- Draws to the poster canvas
-function poster:drawTo(func)
+function poster:drawTo(func, clear)
     func = func or function() lg.clear() end
+    clear = clear or false
     local previous_canvas = lg.getCanvas()
     lg.setCanvas(self.main)
+    if clear then
+        fillBackground()
+    end
     func()
     lg.setCanvas(previous_canvas)
 end
@@ -204,15 +219,21 @@ end
 -- Clears the poster canvas
 function poster:clear()
     local previous_canvas = lg.getCanvas()
+    local previous_blendMode, previous_alphaMode = lg.getBlendMode()
     lg.setCanvas(self.main)
-    lg.clear()
+    fillBackground()
+    lg.setBlendMode(previous_blendMode, previous_alphaMode)
     lg.setCanvas(previous_canvas)
 end
 
 -- set / unset block
-function poster:set()
+function poster:set(clear)
+    clear = clear or true
     poster.previous_canvas = lg.getCanvas()
     lg.setCanvas(self.main)
+    if clear then
+        fillBackground()
+    end
 end
 
 function poster:unset()
@@ -251,6 +272,7 @@ function poster:draw(...)
     lg.setBlendMode("alpha")
     lg.setCanvas(self.b)
     lg.clear()
+    lg.rectangle("fill", 0, 0, self.width, self.height)
     lg.draw(self.main)
     local state = false
     local final = false
